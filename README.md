@@ -14,17 +14,168 @@ Self-contained Python utilities for preflighting generated task candidates befor
 
 `agent_role_noise_attribution_reducer.py` is the next layer after duplicate/off-grid guards and prompt-contract linting. It does not touch live data and does not call external services. It uses embedded synthetic fixtures for six agent-role templates and twelve generated-task examples, then deterministically classifies issuance noise into reviewer actions.
 
-The reducer covers these root causes:
+The reducer answers one operational question: which weak agent-role template clauses are causing bad Hive Mind task candidates, and what should reviewers patch first?
 
-| Root cause | Meaning |
+### Architecture
+
+The reducer has four layers:
+
+1. Fixture model
+2. Rule classifier
+3. Clause attribution engine
+4. Reviewer output builder
+
+The data flow is:
+
+```text
+role template + generated task
+        |
+        v
+deterministic rule checks
+        |
+        v
+root-cause classification
+        |
+        v
+clause-level attribution
+        |
+        v
+block / warn / allow / manual-review action
+        |
+        v
+template patch suggestion
+        |
+        v
+prioritized reviewer queue
+```
+
+### Fixture Model
+
+`ROLE_TEMPLATES` is the embedded source-of-truth model for sanitized role templates. Each role template includes:
+
+- `template_id`
+- `role_name`
+- `mission_lane`
+- `allowed_scopes`
+- `forbidden_scopes`
+- `evidence_rules`
+- `collaboration_rules`
+- `known_weak_clauses`
+
+The important design choice is that weak clauses are represented explicitly. A template does not only describe what a role may do; it also carries risky wording that may produce weak task issuance. That lets the reducer attribute a bad generated task to an exact clause such as `RT-002-C1`, instead of only saying that the role template is weak in general.
+
+`GENERATED_TASK_EXAMPLES` is the embedded synthetic task corpus. Each generated example is mapped to a template and includes the requested scope, title, body, evidence IDs, collaboration dependency, owner, and response channel. These fields give the reducer enough signal to detect scope leakage, duplicate-board language, weak evidence, unsupported dependencies, and no-response-prone routing.
+
+### Rule Classifier
+
+`classify_example(example, template)` evaluates each generated task against five deterministic root-cause families:
+
+| Root cause | Detection logic | Reviewer meaning |
+|---|---|---|
+| `off_grid_leak` | Requested scope is not listed in `allowed_scopes`; explicit forbidden scopes are treated as stronger evidence of the same leak. | The role template allowed or failed to block work outside its mission lane. |
+| `duplicate_board_language` | Title/body contains stable terms such as `duplicate`, `same as board`, `reopen`, `another copy`, or `again`. | The candidate is trying to reopen, duplicate, or reissue board work that should not become a fresh task. |
+| `verification_contract_violation` | Evidence is missing or task text relies on terms such as `obvious`, `inferred`, `looks resolved`, `no fixture id`, or `no evidence`. | The generated task cannot be verified from reviewer-visible artifacts. |
+| `unsupported_collaboration_dependency` | The task dependency is not allowed by the role template's `collaboration_rules`. | The candidate depends on an unnamed, external, unavailable, or unsupported collaborator. |
+| `no_response_routing_risk` | Owner or response channel is missing, or task text uses passive routing such as `someone should`, `whoever`, or `when available`. | The task is likely to produce no response because accountability is unclear. |
+
+The classifier is deliberately rule-based and deterministic. It does not use randomness, external model calls, current board state, or live production data.
+
+### Clause Attribution
+
+Each finding is created through `_finding(...)`, which attaches a root cause to a template field and a clause.
+
+The attribution mapping is intentionally simple:
+
+| Root cause | Template field patched |
 |---|---|
-| `off_grid_leak` | Candidate scope is outside the role template's allowed scopes or explicitly forbidden. |
-| `duplicate_board_language` | Candidate text asks to reopen, duplicate, or reissue board work. |
-| `verification_contract_violation` | Candidate lacks reviewer-verifiable evidence or relies on inferred/obvious proof. |
-| `unsupported_collaboration_dependency` | Candidate depends on unnamed, external, or unsupported collaborators. |
-| `no_response_routing_risk` | Candidate has passive routing, no owner, or no response channel. |
+| `off_grid_leak` | `allowed_scopes` |
+| `duplicate_board_language` | `forbidden_scopes` |
+| `verification_contract_violation` | `evidence_rules` |
+| `unsupported_collaboration_dependency` | `collaboration_rules` |
+| `no_response_routing_risk` | `routing_rules` |
 
-Actions are `block`, `warn`, `allow`, and `manual_review`. Severe findings block generation. Routing-only risks warn. Unsupported collaboration without severe evidence routes to manual review. Clean examples are allowed.
+`_weak_clause(template, field)` looks for an explicit weak clause on that field. If one exists, the reducer attributes the finding to that clause ID. If no explicit weak clause exists, it creates an implicit clause ID such as `RT-006-IMPLICIT-ALLOWED_SCOPES`. That distinction gives reviewers two different patch shapes:
+
+- replace a known weak clause
+- add a missing guard clause
+
+### Action Routing
+
+After collecting findings, each generated example receives exactly one action:
+
+| Action | Meaning |
+|---|---|
+| `block` | Do not issue the generated task. |
+| `warn` | Keep the task available but surface a weaker routing or quality issue. |
+| `manual_review` | Pause automation because collaboration evidence requires human judgment. |
+| `allow` | The candidate passed the reducer's checks. |
+
+Severity is defined centrally:
+
+```python
+SEVERITY_RANK = {
+    "off_grid_leak": 5,
+    "duplicate_board_language": 4,
+    "verification_contract_violation": 4,
+    "unsupported_collaboration_dependency": 3,
+    "no_response_routing_risk": 2,
+    "ambiguous_task_contract": 1,
+}
+```
+
+Routing rules are deterministic:
+
+- no findings -> `allow`
+- any finding with severity `4` or higher -> `block`
+- unsupported collaboration without a block-level finding -> `manual_review`
+- lower-risk findings only -> `warn`
+
+This makes off-grid leaks, duplicate-board language, and unverifiable evidence block-level issues. Unsupported collaboration is routed to manual review unless it appears alongside a more severe failure. No-response routing risk alone is a warning.
+
+### Patch Suggestions
+
+`build_patch_suggestions(classified)` groups findings by:
+
+```python
+(template_id, clause_id, clause_field)
+```
+
+That grouping turns individual bad generated examples into reusable template patches. For each implicated clause, the reducer emits:
+
+- clause ID
+- clause field
+- current weak clause text
+- replacement clause text
+- primary root cause
+- severity
+- recurrence
+- implicated example IDs
+
+Replacement text comes from the fixed `REPLACEMENT_CLAUSES` map, which keeps the output deterministic and reviewer-ready. The reducer does not generate fresh prose differently on each run.
+
+### Prioritized Fix Queue
+
+`build_fix_queue(role_patch_suggestions)` flattens all patch suggestions into `prioritized_template_fix_queue`.
+
+Each queue item gets this score:
+
+```python
+priority_score = severity * 100 + recurrence * 10
+```
+
+The queue is sorted by:
+
+1. highest `priority_score`
+2. `template_id`
+3. `clause_id`
+
+For example, a recurring off-grid leak with severity `5` and recurrence `2` receives:
+
+```text
+5 * 100 + 2 * 10 = 520
+```
+
+This means severe recurring template failures rise above one-off lower-risk issues. The queue is designed to be a deterministic patch order for Task Node reviewers.
 
 ### Output Contract
 
@@ -46,6 +197,12 @@ Running `agent_role_noise_attribution_reducer.py` prints only deterministic JSON
 - `prioritized_template_fix_queue`
 
 `role_patch_suggestions` includes concise replacement clause text for implicated template clauses. `prioritized_template_fix_queue` is sorted deterministically by severity, recurrence, template id, and clause id.
+
+### Design Boundary
+
+The reducer does not replace upstream duplicate, off-grid, or prompt-contract guards. It assumes those controls already exist and focuses on the next layer: identifying which role-template clauses are generating bad task candidates before reviewer time or reward capacity is wasted.
+
+The reducer also does not touch live boards, live rewards, production systems, external services, or private data. All fixtures are synthetic and embedded in the script.
 
 ## Hive Mind Suppression Ledger Reconciler
 
