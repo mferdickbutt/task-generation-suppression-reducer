@@ -8,7 +8,6 @@ synthetic and require no external files or dependencies.
 
 import json
 from collections import Counter, defaultdict
-from copy import deepcopy
 
 LINTER_VERSION = "agent-role-noise-attribution-reducer/1.0.0"
 
