@@ -96,10 +96,10 @@ class LedgerRow:
 
 
 CANDIDATES = (
-    Candidate("C-001", "Rebuild payout review queue", "Create a new task to rebuild the payout review queue for reviewer assignment.", "generator-alpha", "core"),
-    Candidate("C-002", "Re-issue completed payout queue rebuild", "Create another task for payout review queue rebuild after reward completion.", "generator-alpha", "core"),
+    Candidate("C-001", "Rebuild reward review queue", "Create a new task to rebuild the reward review queue for reviewer assignment.", "generator-alpha", "core"),
+    Candidate("C-002", "Re-issue completed reward queue rebuild", "Create another task for reward review queue rebuild after completion.", "generator-alpha", "core"),
     Candidate("C-003", "Repair stale verifier status", "Create a task because a terminal refused verifier record is still marked active.", "generator-beta", "core"),
-    Candidate("C-004", "Launch sidecar wallet scout", "Create a task to inspect wallet-side evidence outside the approved Hive Mind grid.", "generator-gamma", "sidecar"),
+    Candidate("C-004", "Launch sidecar evidence scout", "Create a task to inspect sidecar evidence outside the approved Hive Mind grid.", "generator-gamma", "sidecar"),
     Candidate("C-005", "Add reviewer note to sanctioned adapter", "Create an adjacent documentation task explicitly allowed by governance exception EX-100.", "generator-delta", "core", "EX-100"),
     Candidate("C-006", "Review ambiguous suppression bypass", "Create a task under a partial exception where scope and reward path do not fully match.", "generator-beta", "core", "EX-200"),
     Candidate("C-007", "Publish clean telemetry fixture", "Create a harmless telemetry fixture task with no historical collision.", "generator-alpha", "core"),
@@ -112,15 +112,15 @@ CANDIDATES = (
     Candidate("C-014", "Manual scope adjudication", "Create a task whose proposed objective straddles core and sidecar boundaries.", "generator-gamma", "mixed"),
     Candidate("C-015", "Allow novel reviewer dashboard", "Create a new dashboard reviewer task with no suppressing guard signal.", "generator-delta", "core"),
     Candidate("C-016", "Already rewarded verifier patch", "Create a task to repeat a verifier patch that already paid out.", "generator-alpha", "core"),
-    Candidate("C-017", "Duplicate active payout review queue", "Create a new task to rebuild the payout review queue for reviewer assignment.", "generator-alpha", "core"),
+    Candidate("C-017", "Duplicate active reward review queue", "Create a new task to rebuild the reward review queue for reviewer assignment.", "generator-alpha", "core"),
     Candidate("C-018", "Off-grid sidecar escalation", "Create a task to run sidecar governance checks outside sanctioned scope.", "generator-gamma", "sidecar"),
 )
 
 HISTORICAL_TASKS = (
-    HistoricalTask("T-101", "Rebuild payout review queue", "Rebuild the payout review queue for reviewer assignment.", "active", "unrewarded", "core"),
-    HistoricalTask("T-102", "Payout queue rebuild", "Rebuild payout review queue for reviewer assignment.", "rewarded", "rewarded", "core"),
+    HistoricalTask("T-101", "Rebuild reward review queue", "Rebuild the reward review queue for reviewer assignment.", "active", "unrewarded", "core"),
+    HistoricalTask("T-102", "Reward queue rebuild", "Rebuild reward review queue for reviewer assignment.", "rewarded", "rewarded", "core"),
     HistoricalTask("T-103", "Verifier status repair", "Repair refused verifier record still shown as active.", "refused", "unrewarded", "core"),
-    HistoricalTask("T-104", "Wallet sidecar scout", "Inspect wallet-side evidence outside approved grid.", "active", "unrewarded", "sidecar"),
+    HistoricalTask("T-104", "Sidecar evidence scout", "Inspect sidecar evidence outside approved grid.", "active", "unrewarded", "sidecar"),
     HistoricalTask("T-105", "Sanctioned adapter notes", "Add documentation for sanctioned adapter exception.", "active", "unrewarded", "core"),
     HistoricalTask("T-106", "Suppression bypass review", "Review suppression bypass under partial exception.", "cancelled", "unrewarded", "core"),
     HistoricalTask("T-107", "Duplicate guardrail followup", "Follow up duplicate guardrail task with same open objective.", "active", "unrewarded", "core"),
@@ -132,8 +132,8 @@ HISTORICAL_TASKS = (
 # Guard-output-like findings fixture. These are sanitized downstream facts from
 # duplicate/off-grid/terminal-state guards, not live private evidence.
 FINDINGS = (
-    Finding("C-001", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101", "T-102"), 0.97, "DG-PAYOUT-QUEUE"),
-    Finding("C-002", "already_rewarded_reissue", "ALREADY_REWARDED_REISSUE", ("T-102",), 0.95, "DG-PAYOUT-QUEUE"),
+    Finding("C-001", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101", "T-102"), 0.97, "DG-REWARD-QUEUE"),
+    Finding("C-002", "already_rewarded_reissue", "ALREADY_REWARDED_REISSUE", ("T-102",), 0.95, "DG-REWARD-QUEUE"),
     Finding("C-003", "terminal_state_active", "TERMINAL_STATE_STILL_ACTIVE", ("T-103",), 0.93),
     Finding("C-004", "off_grid_scope", "OFF_GRID_SIDECAR_SCOPE", ("T-104",), 0.91),
     Finding("C-005", "clean_sanctioned_adjacency", "CLEAN_SANCTIONED_ADJACENCY", ("T-105", "EX-100"), 0.88, exception_id="EX-100"),
@@ -143,12 +143,12 @@ FINDINGS = (
     Finding("C-009", "off_grid_scope", "OFF_GRID_SIDECAR_SCOPE", ("T-108",), 0.89),
     Finding("C-010", "terminal_state_active", "TERMINAL_STATE_STILL_ACTIVE", ("T-109",), 0.96),
     Finding("C-011", "clean_sanctioned_adjacency", "CLEAN_SANCTIONED_ADJACENCY", ("T-105", "EX-101"), 0.86, exception_id="EX-101"),
-    Finding("C-012", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101",), 0.84, "DG-PAYOUT-QUEUE"),
-    Finding("C-012", "conflicting_guard_signal", "CONFLICTING_GUARD_SIGNAL", ("T-101", "EX-300"), 0.71, "DG-PAYOUT-QUEUE", "EX-300"),
+    Finding("C-012", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101",), 0.84, "DG-REWARD-QUEUE"),
+    Finding("C-012", "conflicting_guard_signal", "CONFLICTING_GUARD_SIGNAL", ("T-101", "EX-300"), 0.71, "DG-REWARD-QUEUE", "EX-300"),
     Finding("C-013", "low_confidence_duplicate", "LOW_CONFIDENCE_SIMILARITY", ("T-106",), 0.58),
     Finding("C-014", "ambiguous_exception", "AMBIGUOUS_EXCEPTION_SCOPE", ("T-104", "T-106"), 0.64),
     Finding("C-016", "already_rewarded_reissue", "ALREADY_REWARDED_REISSUE", ("T-110",), 0.93, "DG-VERIFIER-PATCH"),
-    Finding("C-017", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101", "T-102"), 0.98, "DG-PAYOUT-QUEUE"),
+    Finding("C-017", "duplicate_active", "DUPLICATE_ACTIVE_OBJECTIVE", ("T-101", "T-102"), 0.98, "DG-REWARD-QUEUE"),
     Finding("C-018", "off_grid_scope", "OFF_GRID_SIDECAR_SCOPE", ("T-104",), 0.92),
 )
 
@@ -259,7 +259,7 @@ def build_generator_preflight_adapter() -> dict[str, Any]:
             "source_evidence_count",
             "suggested_next_action",
         ],
-        "privacy_posture": "fixtures are sanitized; no private URLs, proprietary payloads, wallet secrets, or external files",
+        "privacy_posture": "fixtures are sanitized; no private URLs, proprietary payloads, credentials, or external files",
     }
 
 
