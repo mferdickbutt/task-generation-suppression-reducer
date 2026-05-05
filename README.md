@@ -69,10 +69,10 @@ This repository is safe to keep public. The fixtures are synthetic and sanitized
 - no hostnames or server addresses
 - no API keys, tokens, passwords, or private keys
 - no proprietary task payloads
-- no live wallet-sensitive evidence
+- no live financial, credential, identity, or infrastructure-sensitive evidence
 - no dependencies on external files or services
 
-All evidence references use placeholder ids such as `C-001`, `T-101`, `DG-PAYOUT-QUEUE`, and `EX-100`.
+All evidence references use placeholder ids such as `C-001`, `T-101`, `DG-REWARD-QUEUE`, and `EX-100`.
 
 ## Original Reducer Dispositions
 
